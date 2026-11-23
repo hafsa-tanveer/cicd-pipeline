@@ -1,0 +1,152 @@
+# Pakien CI/CD
+# push to main -> security scan + unit tests -> build zip -> upload to S3 -> EC2 pulls latest build from S3 -> verify live site
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two deployments at the same time.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  S3_BUCKET: ${{ vars.S3_BUCKET }}
+  EC2_HOST: ${{ vars.EC2_HOST }}
+  EC2_USER: ${{ vars.EC2_USER || 'ec2-user' }}
+
+jobs:
+  security-scan:
+    name: 0. Security scan (Gitleaks + CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # lets CodeQL post results to the Security tab
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0       # Gitleaks scans the whole commit history
+
+      - name: Secret scanning (Gitleaks)
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Initialise CodeQL (SAST)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+
+  test:
+    name: 1. Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Run unit tests (pipeline stops here if any test fails)
+        run: npm test
+
+  build:
+    name: 2. Build artifact
+    needs: [test, security-scan]
+    runs-on: ubuntu-latest
+    outputs:
+      zip: ${{ steps.pkg.outputs.zip }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Build site into dist/
+        run: npm run build
+      - name: Package as zip
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ZIP="build-v${VERSION}-${GITHUB_RUN_NUMBER}.zip"
+          (cd dist && zip -qr "../$ZIP" .)
+          ls -lh "$ZIP"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-zip
+          path: ${{ steps.pkg.outputs.zip }}
+          retention-days: 7
+
+  publish:
+    name: 3. Upload artifact to S3
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: build-zip
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Upload build to S3
+        env:
+          ZIP: ${{ needs.build.outputs.zip }}
+        run: |
+          aws s3 cp "$ZIP" "s3://$S3_BUCKET/releases/$ZIP"
+          # latest.zip always points at the newest build that passed tests
+          aws s3 cp "$ZIP" "s3://$S3_BUCKET/releases/latest.zip"
+          echo "Builds now in S3:"
+          aws s3 ls "s3://$S3_BUCKET/releases/"
+
+  deploy:
+    name: 4. Deploy latest build to EC2
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: http://${{ vars.EC2_HOST }}
+    steps:
+      - uses: actions/checkout@v7   # for deploy/deploy.sh
+      - name: Set up SSH key
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/ec2.pem
+          chmod 600 ~/.ssh/ec2.pem
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: EC2 pulls releases/latest.zip from S3 and goes live
+        run: |
+          ssh -i ~/.ssh/ec2.pem "$EC2_USER@$EC2_HOST" \
+            "sudo bash -s -- '$S3_BUCKET' '$AWS_REGION'" < deploy/deploy.sh
+
+  verify:
+    name: 5. Verify production
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the live site is serving this build
+        run: |
+          for i in $(seq 1 10); do
+            LIVE=$(curl -fsS "http://$EC2_HOST/version.txt" || true)
+            echo "Live version: $LIVE"
+            if echo "$LIVE" | grep -q "build ${GITHUB_RUN_NUMBER}"; then
+              curl -fsS -o /dev/null -w "Homepage HTTP %{http_code}\n" "http://$EC2_HOST/"
+              echo "Production is running build ${GITHUB_RUN_NUMBER}: http://$EC2_HOST"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Production did not pick up build ${GITHUB_RUN_NUMBER}" && exit 1

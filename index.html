@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<!-- Pakien demo storefront. Deployed by the GitHub Actions -> S3 -> EC2 pipeline. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pakien | Online Shopping</title>
+<style>
+:root {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --ink: #1f2328;
+  --muted: #5f6670;
+  --line: #e4e2dd;
+  --header: #ffffff;
+  --header-ink: #1f2328;
+  --nav: #ffffff;
+  --nav-ink: #3b4148;
+  --strip: #eef1ef;
+  --strip-ink: #3b4148;
+  --accent: #2f5d62;
+  --accent-ink: #ffffff;
+  --accent-2: #2f5d62;
+  --price: #1f2328;
+  --save: #2f6b45;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.45; min-width: 1100px; }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+input, select { font: inherit; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+.narrow { max-width: 720px; }
+.link { background: none; border: 0; color: var(--accent); text-decoration: underline; padding: 0; }
+[hidden] { display: none !important; }
+
+/* ---------- Header ---------- */
+.strip { background: var(--strip); color: var(--strip-ink); text-align: center; font-size: 13px; font-weight: 600; padding: 7px 16px; }
+header.site { background: var(--header); color: var(--header-ink); border-bottom: 1px solid var(--line); }
+.hdr { display: flex; align-items: center; gap: 28px; height: 72px; }
+.logo { display: flex; align-items: center; gap: 8px; background: none; border: 0; color: inherit; font-weight: 800; font-size: 26px; letter-spacing: -.5px; }
+.logo svg { width: 36px; height: 36px; }
+.search { flex: 1; display: flex; height: 44px; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--accent); background: #fff; }
+.search input { flex: 1; border: 0; padding: 0 16px; outline: none; font-size: 15px; color: #111; background: #fff; }
+.search button { border: 0; background: var(--accent); color: var(--accent-ink); padding: 0 22px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.search button svg { width: 18px; height: 18px; }
+.hello { font-size: 12px; line-height: 1.25; }
+.hello b { display: block; font-size: 14px; }
+.cart-btn { position: relative; display: flex; align-items: center; gap: 8px; background: none; border: 0; color: inherit; font-weight: 600; font-size: 15px; padding: 6px 8px; }
+.cart-btn svg { width: 30px; height: 30px; }
+.cart-count { position: absolute; top: -4px; left: 22px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--accent-2); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+nav.cats { background: var(--nav); color: var(--nav-ink); border-bottom: 1px solid var(--line); }
+nav.cats .wrap { display: flex; gap: 4px; height: 44px; align-items: center; }
+nav.cats button { background: none; border: 0; color: inherit; padding: 6px 12px; border-radius: 6px; font-size: 14px; }
+nav.cats button:hover { background: rgba(127,127,127,.18); }
+nav.cats button.active { font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
+
+/* ---------- Views ---------- */
+main { min-height: 70vh; padding: 24px 0 64px; }
+.view { display: none; opacity: 0; transition: opacity .25s ease; }
+.view.shown { display: block; }
+.view.visible { opacity: 1; }
+.back { background: none; border: 0; color: var(--muted); font-size: 14px; margin-bottom: 16px; padding: 4px 0; }
+.back:hover { color: var(--ink); text-decoration: underline; }
+.page-title { font-size: 28px; margin-bottom: 20px; }
+
+/* ---------- Banner ---------- */
+.banner { display: flex; align-items: center; justify-content: space-between; border-radius: 16px; padding: 44px 56px; margin-bottom: 32px; overflow: hidden; position: relative; min-height: 260px; }
+.banner-text { max-width: 640px; position: relative; z-index: 1; }
+.banner h1 { margin: 12px 0 10px; line-height: 1.1; }
+.banner-art { position: relative; width: 340px; height: 200px; flex-shrink: 0; }
+.banner { background: #e9efec; color: #1f2328; }
+.banner-tag { display: inline-block; color: #2f5d62; font-weight: 600; font-size: 14px; letter-spacing: .3px; }
+.banner h1 { font-size: 40px; font-weight: 700; }
+.banner p { font-size: 17px; color: #4a5058; }
+.banner-cta { margin-top: 22px; background: #2f5d62; color: #fff; border: 0; border-radius: 8px; padding: 12px 26px; font-size: 16px; font-weight: 600; }
+.banner-art span { position: absolute; border-radius: 50%; }
+.banner-art .b1 { width: 170px; height: 170px; right: 120px; top: 10px; background: #cfdcd6; }
+.banner-art .b2 { width: 110px; height: 110px; right: 20px; top: 70px; background: #f1dccf; }
+
+/* ---------- Grid ---------- */
+.grid-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+.grid-head h2 { font-size: 24px; }
+.grid-head span { color: var(--muted); font-size: 14px; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: box-shadow .2s, transform .2s; display: flex; flex-direction: column; }
+.card:hover, .card:focus-visible { box-shadow: 0 6px 20px rgba(0,0,0,.10); transform: translateY(-2px); outline: none; }
+.card-img { position: relative; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; }
+.card-img svg { width: 90%; height: 90%; }
+.card-img .product-image, .pd-img .product-image, .atc-thumb .product-image, .line-img .product-image {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.card-body h3 { font-size: 15px; font-weight: 600; }
+.rating { color: #c98a00; font-size: 13px; }
+.rating span { color: var(--muted); }
+.price-row { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; }
+.price { font-size: 20px; font-weight: 700; color: var(--price); }
+.fees-note { color: var(--muted); font-size: 12.5px; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+
+/* ---------- Product detail ---------- */
+.pd { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 32px; }
+.pd-img { position: relative; overflow: hidden; border-radius: var(--radius); aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; }
+.pd-img svg { width: 90%; height: 90%; }
+.pd-info { display: flex; flex-direction: column; gap: 12px; }
+.pd-cat { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .6px; }
+.pd-info h1 { font-size: 30px; line-height: 1.2; }
+.pd-price { display: flex; align-items: baseline; gap: 10px; }
+.pd-price .price { font-size: 32px; }
+.pd-desc { color: #3a3f45; }
+.pd-bullets { padding-left: 20px; color: #3a3f45; font-size: 14px; }
+.pd-deal { font-size: 14px; border-radius: 8px; padding: 10px 14px; }
+.btn { border: 0; border-radius: 8px; padding: 11px 22px; font-weight: 600; font-size: 15px; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-lg { padding: 15px 28px; font-size: 17px; }
+.btn-block { display: block; width: 100%; }
+.pd-deal { background: #f1f3f2; color: #3b4148; }
+
+/* ---------- Add-to-cart modal ---------- */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 900; }
+.modal { position: relative; background: var(--surface); border-radius: 14px; width: 520px; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+.modal-x { position: absolute; top: 10px; right: 12px; background: none; border: 0; font-size: 26px; color: var(--muted); line-height: 1; padding: 4px 8px; }
+.atc-head { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; }
+.atc-thumb { position: relative; overflow: hidden; width: 72px; height: 72px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.atc-thumb svg { width: 80%; height: 80%; }
+.atc-name { color: var(--muted); font-size: 14px; }
+.offer { border-top: 1px solid var(--line); padding-top: 16px; }
+.offer-text { margin-bottom: 14px; }
+.threshold { margin-top: 16px; font-size: 13.5px; color: var(--muted); }
+#atc-title { font-size: 20px; }
+.offer-actions { display: flex; gap: 12px; }
+.offer-yes, .offer-no { flex: 1; background: var(--surface); color: var(--ink); border: 1px solid #b9bdc2; font-size: 15px; font-weight: 600; padding: 11px; border-radius: 8px; }
+
+/* ---------- Cart ---------- */
+.cart-layout, .checkout-layout { display: grid; grid-template-columns: 1fr 360px; gap: 28px; align-items: start; }
+.cart-items { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 24px; }
+.line { display: grid; grid-template-columns: 110px 1fr auto; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.line:last-child { border-bottom: 0; }
+.line-img { position: relative; overflow: hidden; width: 110px; height: 110px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.line-img svg { width: 75%; height: 75%; }
+.line-info h3 { font-size: 16px; }
+.line-cat { color: var(--muted); font-size: 13px; }
+.line-price { font-size: 14px; margin-top: 4px; }
+.line-free { color: var(--save); font-size: 13px; font-weight: 600; }
+.line-total { font-weight: 700; font-size: 17px; }
+.qty { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.qty button:not(.link) { width: 30px; height: 30px; border: 1px solid var(--line); background: #fafafa; border-radius: 6px; font-size: 16px; }
+.qty .link { margin-left: 10px; font-size: 13px; }
+.empty-cart { padding: 40px 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--muted); }
+.summary-box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; position: sticky; top: 16px; }
+.summary-box h3 { font-size: 18px; margin-bottom: 12px; }
+.sum-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14.5px; }
+.sum-row.save { color: var(--save); }
+.sum-row.total { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 12px; font-size: 18px; font-weight: 700; }
+.sum-item { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); padding: 3px 0; }
+.sum-items { border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 8px; }
+.summary-box .btn { margin-top: 16px; }
+
+/* ---------- Checkout ---------- */
+.steps { display: flex; list-style: none; gap: 8px; margin-bottom: 22px; counter-reset: step; }
+.steps li { flex: 1; padding: 10px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 14px; counter-increment: step; }
+.steps li::before { content: counter(step) ". "; }
+.steps li.current { border-color: var(--accent); color: var(--ink); font-weight: 700; }
+.steps li.done { color: var(--save); }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; }
+.step h2 { font-size: 22px; margin-bottom: 6px; }
+.step-sub { color: var(--muted); margin-bottom: 18px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; margin-bottom: 22px; }
+.fields .full { grid-column: 1 / -1; }
+label.field { display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 600; }
+label.field input, label.field select { border: 1px solid #c9ccd1; border-radius: 6px; padding: 10px 12px; font-weight: 400; background: #fff; }
+fieldset { border: 0; margin-bottom: 22px; }
+legend { font-weight: 700; font-size: 16px; margin-bottom: 10px; }
+.radio-row { display: flex; gap: 12px; }
+.radio-pill { display: flex; align-items: center; gap: 8px; border: 1px solid #c9ccd1; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+.plan-opts { display: flex; flex-direction: column; gap: 12px; }
+.plan-opt { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 2px; align-items: start; border: 1px solid #c9ccd1; border-radius: 10px; padding: 14px 16px; cursor: pointer; position: relative; }
+.plan-opt input { grid-row: span 2; margin-top: 4px; }
+.plan-title { font-weight: 700; }
+.plan-desc { color: var(--muted); font-size: 13.5px; }
+.acct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.acct-card { border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.acct-card h3 { font-size: 17px; }
+.acct-card p { color: var(--muted); font-size: 13.5px; }
+.acct-card .btn { margin-top: auto; }
+.review-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0 20px; }
+.review-block { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+.review-block h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 4px; }
+.opts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+.check input { margin-top: 3px; }
+
+/* ---------- Confirmation ---------- */
+.confirm-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 40px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.confirm-icon { width: 64px; height: 64px; border-radius: 50%; background: var(--save); color: #fff; font-size: 34px; display: flex; align-items: center; justify-content: center; }
+.confirm-card h1 { font-size: 26px; }
+.cf-details { width: 100%; text-align: left; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 14px 0; margin: 8px 0; }
+
+/* ---------- Toast & footer ---------- */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #222; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; z-index: 950; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.on { opacity: 1; }
+footer { border-top: 1px solid var(--line); padding: 24px 0; color: var(--muted); font-size: 12.5px; text-align: center; background: var(--surface); }
+
+/* Demo-store notice above the card fields */
+.demo-note { grid-column: 1 / -1; background: #eff8ff; color: #175cd3; border-radius: 8px; padding: 10px 14px; font-size: 13.5px; }
+.build-tag { display: block; margin-top: 6px; font-weight: 600; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<div class="strip">Free delivery on orders over PKR 6,000 · Buy 2 Get 1 Free on all items</div>
+<header class="site">
+  <div class="wrap hdr">
+    <button class="logo" id="logo" aria-label="Pakien home">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M13 14V11a7 7 0 0 1 14 0v3" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/><rect x="5" y="13" width="30" height="24" rx="6" fill="var(--accent)"/><text x="20" y="32" text-anchor="middle" font-size="17" font-weight="800" fill="#fff" font-family="Segoe UI, Arial, sans-serif">p</text></svg>
+      pakien
+    </button>
+    <form class="search" id="search-form" role="search">
+      <input type="search" id="search-input" placeholder="Search makeup, jeans, décor…" aria-label="Search products" autocomplete="off">
+      <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Search</button>
+    </form>
+    <div class="hello">Hello, Guest<b>Your account</b></div>
+    <button class="cart-btn" id="cart-btn" aria-label="Cart">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20.5" r="1.3"/><circle cx="17" cy="20.5" r="1.3"/></svg>
+      <span class="cart-count" id="cart-count">0</span>
+      Cart
+    </button>
+  </div>
+  <nav class="cats" aria-label="Categories">
+    <div class="wrap">
+      <button data-cat="all" class="active">All</button>
+      <button data-cat="women">Women</button>
+      <button data-cat="men">Men</button>
+      <button data-cat="makeup">Beauty</button>
+      <button data-cat="grooming">Grooming</button>
+      <button data-cat="shoes">Shoes</button>
+      <button data-cat="accessories">Accessories</button>
+      <button data-cat="tech">Tech</button>
+      <button data-cat="decor">Home Décor</button>
+      <button data-cat="fitness">Fitness</button>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <!-- ================= HOME ================= -->
+  <section class="view" id="view-home">
+    <div class="wrap">
+      <section class="banner">
+        <div class="banner-text">
+          <span class="banner-tag">New season</span>
+          <h1>Thoughtful gifts, honestly priced</h1>
+          <p>Makeup, clothing, accessories and décor. Delivery and fees are shown upfront on every item.</p>
+          <button class="banner-cta" id="banner-cta">Browse gifts</button>
+        </div>
+        <div class="banner-art" aria-hidden="true"><span class="b1"></span><span class="b2"></span></div>
+      </section>
+      <div class="grid-head" id="grid-anchor">
+        <h2 id="grid-title">Gift ideas for you</h2>
+        <span id="grid-count"></span>
+        <button class="link" id="clear-filter" hidden>Clear search</button>
+      </div>
+      <div class="grid" id="grid"></div>
+      <p class="empty" id="grid-empty" hidden>No products match your search.</p>
+    </div>
+  </section>
+
+  <!-- ================= PRODUCT DETAIL ================= -->
+  <section class="view" id="view-product">
+    <div class="wrap">
+      <button class="back" data-go="home">← Back to results</button>
+      <div class="pd">
+        <div class="pd-img" id="pd-img"></div>
+        <div class="pd-info">
+          <span class="pd-cat" id="pd-cat"></span>
+          <h1 id="pd-name"></h1>
+          <div class="rating" id="pd-rating"></div>
+          <div class="pd-price">
+            <span class="price" id="pd-price"></span>
+          </div>
+          <p class="fees-note" id="pd-fees"></p>
+          <p class="pd-desc" id="pd-desc"></p>
+          <ul class="pd-bullets" id="pd-bullets"></ul>
+          <div class="pd-deal">Buy 2 Get 1 Free applies to this item · Free delivery on orders over PKR 6,000</div>
+          <button class="btn btn-primary btn-lg" id="add-to-cart">Add to Cart</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CART ================= -->
+  <section class="view" id="view-cart">
+    <div class="wrap">
+      <button class="back" data-go="home">← Continue shopping</button>
+      <h1 class="page-title">Shopping cart</h1>
+      <div class="cart-layout">
+        <div class="cart-items" id="cart-items"></div>
+        <aside class="summary-box">
+          <h3>Summary</h3>
+          <div id="cart-summary"></div>
+          <div class="threshold" id="cart-threshold"></div>
+          <button class="btn btn-primary btn-block btn-lg" id="to-checkout">Proceed to Checkout</button>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CHECKOUT ================= -->
+  <section class="view" id="view-checkout">
+    <div class="wrap">
+      <button class="back" id="checkout-back">← Back</button>
+      <ol class="steps" id="steps">
+        <li data-step="1">Shipping</li>
+        <li data-step="2">Payment</li>
+        <li data-step="3">Account</li>
+        <li data-step="4">Review &amp; place order</li>
+      </ol>
+      <div class="checkout-layout">
+        <div class="checkout-main">
+
+          <!-- Step 1: Shipping -->
+          <form class="step" id="step-1" data-step="1" novalidate>
+            <h2>Shipping address</h2>
+            <p class="step-sub">Where should we deliver your order?</p>
+            <div class="fields">
+              <label class="field full">Full name<input name="name" autocomplete="off"></label>
+              <label class="field">Phone number<input name="phone" placeholder="03XX XXXXXXX" autocomplete="off"></label>
+              <label class="field">City
+                <select name="city">
+                  <option>Karachi</option><option>Lahore</option><option>Islamabad</option><option>Rawalpindi</option>
+                  <option>Faisalabad</option><option>Multan</option><option>Peshawar</option><option>Quetta</option>
+                </select>
+              </label>
+              <label class="field full">Street address<input name="address" placeholder="House #, street, area" autocomplete="off"></label>
+              <label class="field">Postal code<input name="postal" autocomplete="off"></label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg">Continue to payment</button>
+          </form>
+
+          <!-- Step 2: Payment -->
+          <form class="step" id="step-2" data-step="2" novalidate hidden>
+            <h2>Payment</h2>
+            <p class="step-sub">This is a demo store. Please do not enter real card details.</p>
+            <fieldset>
+              <legend>Payment method</legend>
+              <div class="radio-row">
+                <label class="radio-pill"><input type="radio" name="pay" value="card" checked> Debit / credit card</label>
+                <label class="radio-pill"><input type="radio" name="pay" value="cod"> Cash on delivery</label>
+              </div>
+            </fieldset>
+            <div class="fields" id="card-fields">
+              <p class="demo-note">Demo store: no real payment is taken. Use the test card <b>4242 4242 4242 4242</b>, expiry <b>12/30</b>, CVC <b>123</b>.</p>
+              <label class="field full">Card number<input name="card" inputmode="numeric" placeholder="4242 4242 4242 4242" autocomplete="off" data-lpignore="true" spellcheck="false"></label>
+              <label class="field">Expiry<input name="exp" placeholder="MM/YY" autocomplete="off" data-lpignore="true" spellcheck="false"></label>
+              <label class="field">CVC<input name="cvc" inputmode="numeric" placeholder="123" autocomplete="off" data-lpignore="true" spellcheck="false"></label>
+              <label class="field full">Name on card<input name="cardname" autocomplete="off"></label>
+            </div>
+            <fieldset>
+              <legend>Purchase type</legend>
+              <div class="plan-opts">
+                <label class="plan-opt">
+                  <input type="radio" name="plan" value="once" checked>
+                  <span class="plan-title">One-time purchase</span>
+                  <span class="plan-desc">Pay for this order only. No membership and no recurring charges.</span>
+                </label>
+                <label class="plan-opt">
+                  <input type="radio" name="plan" value="pro">
+                  <span class="plan-title">PakienPro membership: PKR 299/month after a 7-day free trial</span>
+                  <span class="plan-desc">Renews automatically every month until you cancel. Members get 10% off and PKR 99 delivery.</span>
+                </label>
+              </div>
+            </fieldset>
+            <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+          </form>
+
+          <!-- Step 3: Account -->
+          <form class="step" id="step-3" data-step="3" hidden>
+            <h2>Account</h2>
+            <p class="step-sub">Create an account to track your orders, or check out as a guest.</p>
+            <div class="acct-grid">
+              <div class="acct-card">
+                <h3>Create an account</h3>
+                <label class="field">Email<input type="email" name="email" required autocomplete="off"></label>
+                <label class="field">Password<input type="password" name="password" required autocomplete="new-password"></label>
+                <button type="submit" class="btn btn-primary">Create account &amp; continue</button>
+              </div>
+              <div class="acct-card">
+                <h3>Checkout as guest</h3>
+                <p>No account needed. We'll email your receipt.</p>
+                <label class="field">Email<input type="email" name="guestEmail" autocomplete="off"></label>
+                <button type="button" class="btn btn-primary" id="guest-continue">Checkout as guest</button>
+              </div>
+            </div>
+          </form>
+
+          <!-- Step 4: Review -->
+          <form class="step" id="step-4" data-step="4" novalidate hidden>
+            <h2>Review your order</h2>
+            <div class="review-grid">
+              <div class="review-block"><h4>Ship to</h4><p id="rv-ship"></p></div>
+              <div class="review-block"><h4>Payment</h4><p id="rv-pay"></p></div>
+              <div class="review-block"><h4>Purchase type</h4><p id="rv-plan"></p></div>
+            </div>
+            <div class="opts">
+              <label class="check"><input type="checkbox" id="addon-check"><span>Recommended add-on: <b id="addon-label"></b></span></label>
+              <label class="check"><input type="checkbox" id="newsletter-check"><span>Sign me up for the Pakien newsletter with deals and new arrivals</span></label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg btn-block" id="place-order">Place Order</button>
+          </form>
+
+        </div>
+        <aside class="summary-box">
+          <h3>Order summary</h3>
+          <div id="checkout-summary"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CONFIRMATION ================= -->
+  <section class="view" id="view-confirm">
+    <div class="wrap narrow">
+      <div class="confirm-card">
+        <div class="confirm-icon">✓</div>
+        <h1>Thank you! Your order has been placed.</h1>
+        <p>Order number <b id="cf-id"></b></p>
+        <div class="cf-details" id="cf-details"></div>
+        <button class="btn btn-primary" data-go="home">Continue shopping</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>Pakien is a fictional demo store. No real orders, payments or accounts are processed.<span class="build-tag" id="build-tag">Version __APP_VERSION__</span></footer>
+
+<!-- ================= ADD-TO-CART MODAL ================= -->
+<div class="modal-backdrop" id="atc-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="atc-title">
+    <button class="modal-x" id="atc-close" aria-label="Close">×</button>
+    <div class="atc-head">
+      <div class="atc-thumb" id="atc-thumb"></div>
+      <div>
+        <h2 id="atc-title">Added to cart</h2>
+        <p class="atc-name" id="atc-name"></p>
+      </div>
+    </div>
+    <div class="offer">
+      <p class="offer-text">Buy 2 Get 1 Free: add 2 more of this item and pay for only one of them.</p>
+      <div class="offer-actions">
+        <button class="btn offer-yes" id="offer-yes">Add 2 more (+<span id="offer-cost"></span>)</button>
+        <button class="btn offer-no" id="offer-no">No thanks</button>
+      </div>
+    </div>
+    <div class="threshold" id="atc-threshold"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="js/pricing.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
